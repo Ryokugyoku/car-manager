@@ -1,5 +1,11 @@
 # CarManager
 
+[English](README.md) | [日本語](README.ja.md)
+
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-6366f1.svg)](LICENSE)
+
+> Source-available for noncommercial use. Commercial use requires a separate written license.
+
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.0.3.
 
 ## Development server
@@ -65,5 +71,3 @@ This project is source-available under the [PolyForm Noncommercial License 1.0.0
 - Personal study, research, experimentation, and hobby use are permitted.
 - Noncommercial modification and redistribution are permitted under the license terms.
 - Commercial use, including use in a commercial product or service, is not permitted without a separate written license from the copyright holder.
-
-このプロジェクトは、個人の学習・研究・実験・趣味などの非商用目的で利用できます。商用製品や商用サービスでの利用には、著作権者から別途書面による許諾を得る必要があります。
