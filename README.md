@@ -57,3 +57,13 @@ Angular CLI does not come with an end-to-end testing framework by default. You c
 ## Additional Resources
 
 For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+
+## License
+
+This project is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+- Personal study, research, experimentation, and hobby use are permitted.
+- Noncommercial modification and redistribution are permitted under the license terms.
+- Commercial use, including use in a commercial product or service, is not permitted without a separate written license from the copyright holder.
+
+このプロジェクトは、個人の学習・研究・実験・趣味などの非商用目的で利用できます。商用製品や商用サービスでの利用には、著作権者から別途書面による許諾を得る必要があります。
