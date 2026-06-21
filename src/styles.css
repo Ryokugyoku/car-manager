@@ -1,0 +1,18 @@
+/* Global reset to avoid default browser white margins around the app. */
+html,
+body {
+	margin: 0;
+	padding: 0;
+	min-height: 100%;
+	background: #09090f;
+}
+
+body {
+	font-family: 'Segoe UI', 'Noto Sans JP', sans-serif;
+}
+
+app-root {
+	display: block;
+	min-height: 100vh;
+	background: #09090f;
+}

@@ -1,0 +1,480 @@
+<div class="app-container">
+  <header class="app-header">
+    <div class="header-main">
+      <section class="header-identity-card" aria-label="Car manager and vehicle profile">
+        <div class="identity-top">
+          <p class="identity-app">Car Manager</p>
+          <span class="identity-confidence">{{ vehicleProfile().confidence }}</span>
+        </div>
+        <h1 class="identity-title">{{ vehicleProfile().manufacturer }} / {{ vehicleProfile().model }}</h1>
+        <div class="identity-meta">
+          <span>OBDLiNKEX Live Monitor</span>
+          <span>VIN {{ vehicleProfile().vin || 'Unknown' }}</span>
+          <span>Year {{ vehicleProfile().modelYear }}</span>
+          <span>Engine {{ vehicleProfile().engineCode }}</span>
+        </div>
+      </section>
+
+      <div class="status-chip" [class.connected]="isConnected()" [class.loading]="isLoading()">
+        <span class="status-dot"></span>
+        <div>
+          <div class="status-label">Connection</div>
+          <div class="status-value">{{ connectionStatus() }}</div>
+        </div>
+      </div>
+
+      <div class="reservation-chip" [ngClass]="getHeaderReservationUsageLevel()">
+        <span class="reservation-label">Reservation</span>
+        <div class="reservation-value-row">
+          <span class="reservation-value">{{ getHeaderReservationUsageText() }}</span>
+          <span class="material-symbols-outlined reservation-icon" *ngIf="getHeaderReservationUsageIcon()">
+            {{ getHeaderReservationUsageIcon() }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <aside class="side-menu">
+      <nav class="menu-nav" aria-label="Primary navigation">
+        <button class="menu-item" [class.active]="currentView() === 'dashboard'" (click)="setView('dashboard')">
+          <span class="menu-icon material-symbols-outlined" aria-hidden="true">dashboard</span>
+          <span class="menu-text">Dashboard</span>
+        </button>
+        <button class="menu-item" [class.active]="currentView() === 'storage'" (click)="setView('storage')">
+          <span class="menu-icon material-symbols-outlined" aria-hidden="true">hard_drive_2</span>
+          <span class="menu-text">Storage</span>
+        </button>
+        <button class="menu-item" [class.active]="currentView() === 'connection-setup'" (click)="setView('connection-setup')">
+          <span class="menu-icon material-symbols-outlined" aria-hidden="true">usb</span>
+          <span class="menu-text">Connection Setup</span>
+        </button>
+        <button class="menu-item" [class.active]="currentView() === 'known-vehicles'" (click)="setView('known-vehicles')">
+          <span class="menu-icon material-symbols-outlined" aria-hidden="true">directions_car</span>
+          <span class="menu-text">Known Vehicles</span>
+        </button>
+        <button class="menu-item" [class.active]="currentView() === 'connection-history'" (click)="setView('connection-history')">
+          <span class="menu-icon material-symbols-outlined" aria-hidden="true">history</span>
+          <span class="menu-text">Connection History</span>
+        </button>
+        <button class="menu-item" [class.active]="currentView() === 'drive-logs'" (click)="setView('drive-logs')">
+          <span class="menu-icon material-symbols-outlined" aria-hidden="true">insights</span>
+          <span class="menu-text">Drive Logs</span>
+        </button>
+      </nav>
+
+      <p class="menu-caption">Master: {{ knownVehicles().length }} records</p>
+    </aside>
+
+    <section class="content-area">
+      <section class="global-storage-alert" *ngIf="storageAlert() as alert" [class.critical]="alert.level === 'critical'">
+        <div>
+          <strong>{{ alert.level === 'critical' ? 'Critical' : 'Warning' }}</strong>
+          <p>{{ alert.message }}</p>
+        </div>
+        <div class="global-storage-actions">
+          <button class="btn-disconnect" (click)="goToStorage()">Storage設定を開く</button>
+          <button class="btn-connect" (click)="reallocateReservation()">予約スペース再確保</button>
+        </div>
+      </section>
+
+      <p class="flash-message" *ngIf="flashMessage()">{{ flashMessage() }}</p>
+
+      <section [style.display]="currentView() === 'dashboard' ? 'block' : 'none'" [attr.aria-hidden]="currentView() !== 'dashboard'">
+        <app-live-dashboard
+          [data]="obdData()"
+          [isConnected]="isConnected()"
+          [connectionStatus]="connectionStatus()"
+        ></app-live-dashboard>
+      </section>
+
+      <ng-container *ngIf="currentView() === 'storage'">
+        <section class="panel-block storage-page" *ngIf="storageOverview() as storage">
+          <div class="storage-header">
+            <div>
+              <h2>Storage</h2>
+              <p>DB専用ボリュームの保存先と使用状況を表示します。</p>
+            </div>
+            <button class="btn-connect" (click)="loadStoragePaths(true)">Refresh</button>
+          </div>
+
+          <section class="storage-config-block">
+            <h3>DB Volume Setting</h3>
+            <div class="storage-config-row">
+              <label for="reservationMbInput">Volume Size (MB)</label>
+              <input id="reservationMbInput" type="number" min="128" step="1" [value]="reservationMbInput()" (input)="onReservationInputChanged($any($event.target).value)" />
+              <button class="btn-connect" (click)="saveReservationSetting()">Save</button>
+              <button class="btn-disconnect" (click)="reallocateReservation()">Resize / Re-Reserve</button>
+            </div>
+            <p class="reservation-error" *ngIf="reservationActionError() as error">{{ error }}</p>
+            <p class="storage-help" *ngIf="storage.ioLogDbLimitExceeded">
+              I/OログDBが1GBを超えています。Storage画面で不要データ整理後に再確保するか、予約容量を縮小してください。
+            </p>
+            <p class="storage-help" *ngIf="storage.dbVolumeWarning">
+              {{ storage.dbVolumeAutoCleanupPolicy }}
+            </p>
+          </section>
+
+          <div class="storage-summary-grid">
+            <article class="storage-summary-card">
+              <span>DB Volume Path</span>
+              <strong>{{ storage.dbVolumeDir }}</strong>
+            </article>
+            <article class="storage-summary-card">
+              <span>Root Path</span>
+              <strong>{{ storage.rootDir }}</strong>
+            </article>
+            <article class="storage-summary-card">
+              <span>Disk Free</span>
+              <strong>{{ formatBytes(storage.freeBytes) }} / {{ formatBytes(storage.totalBytes) }}</strong>
+            </article>
+            <article class="storage-summary-card">
+              <span>DB Volume Size</span>
+              <strong>{{ formatBytes(storage.dbVolumeSizeBytes) }}</strong>
+            </article>
+            <article class="storage-summary-card">
+              <span>DB Volume Usage</span>
+              <strong>{{ formatBytes(storage.dbVolumeUsedBytes) }} / {{ formatBytes(storage.dbVolumeSizeBytes) }} ({{ formatPercent(storage.dbVolumeUsagePercent) }})</strong>
+            </article>
+            <article class="storage-summary-card">
+              <span>Reservation Usage</span>
+              <strong>{{ formatPercent(storage.reservationUsagePercent) }}</strong>
+            </article>
+            <article class="storage-summary-card">
+              <span>I/O Log DB Usage</span>
+              <strong>{{ formatBytes(storage.ioLogDbSizeBytes) }} / {{ formatBytes(storage.ioLogDbLimitBytes) }} ({{ formatPercent(storage.ioLogDbUsagePercent) }})</strong>
+            </article>
+            <article class="storage-summary-card">
+              <span>I/O Log DB Path</span>
+              <strong>{{ storage.ioLogDbPath }}</strong>
+            </article>
+          </div>
+
+          <div class="io-chart-grid">
+            <article class="io-chart-card">
+              <div class="spark-title">I/O Rate 1 Min</div>
+              <div class="spark-bars io-bars">
+                <span *ngFor="let bar of getIoBars('1m')" [style.height.%]="bar"></span>
+              </div>
+              <div class="spark-foot">LATEST {{ getIoLatestRate('1m') }} / PEAK {{ getIoPeakRate('1m') }}</div>
+            </article>
+            <article class="io-chart-card">
+              <div class="spark-title">I/O Rate 1 Hour</div>
+              <div class="spark-bars io-bars">
+                <span *ngFor="let bar of getIoBars('1h')" [style.height.%]="bar"></span>
+              </div>
+              <div class="spark-foot">LATEST {{ getIoLatestRate('1h') }} / PEAK {{ getIoPeakRate('1h') }}</div>
+            </article>
+            <article class="io-chart-card">
+              <div class="spark-title">I/O Rate All Time</div>
+              <div class="spark-bars io-bars">
+                <span *ngFor="let bar of getIoBars('all')" [style.height.%]="bar"></span>
+              </div>
+              <div class="spark-foot">LATEST {{ getIoLatestRate('all') }} / PEAK {{ getIoPeakRate('all') }}</div>
+            </article>
+          </div>
+
+          <div class="storage-db-grid">
+            <article class="storage-db-card" *ngFor="let db of storage.databases">
+              <h3>{{ db.label }}</h3>
+              <p class="storage-path">{{ db.path }}</p>
+              <div class="storage-metrics">
+                <div>
+                  <span>I/O</span>
+                  <strong>{{ formatPercent(db.ioPercent) }}</strong>
+                </div>
+                <div>
+                  <span>Usage</span>
+                  <strong>{{ formatBytes(db.sizeBytes) }} / {{ formatBytes(db.capacityBytes) }}</strong>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+        <section class="panel-block" *ngIf="!storageOverview()">
+          <h2>Storage</h2>
+          <p class="storage-fallback">Storage information is unavailable.</p>
+        </section>
+      </ng-container>
+
+      <ng-container *ngIf="currentView() === 'connection-setup'">
+        <section class="panel-block connection-setup-page">
+          <div class="storage-header">
+            <div>
+              <h2>Connection Setup</h2>
+              <p>接続先を選択してボタンで接続します。</p>
+            </div>
+            <button class="btn-connect" (click)="loadSerialPorts()" [disabled]="isLoading()">Refresh</button>
+          </div>
+
+          <div class="manual-connect-panel">
+            <label for="modeSelect">Connection Mode</label>
+            <select
+              id="modeSelect"
+              class="manual-port-select"
+              [value]="selectedMode()"
+              (change)="onModeChanged($any($event.target).value)"
+              [disabled]="isLoading()"
+            >
+              <option *ngFor="let mode of supportedModes()" [value]="mode">
+                {{ getMonitoringModeLabel(mode) }}
+              </option>
+            </select>
+
+            <label for="serialPortSelect">Serial Target</label>
+            <select
+              id="serialPortSelect"
+              class="manual-port-select"
+              [value]="selectedPortPath()"
+              (change)="onSelectedPortChanged($any($event.target).value)"
+              [disabled]="isLoading()"
+            >
+              <option *ngFor="let port of serialPorts()" [value]="port.path">
+                {{ getSerialOptionLabel(port) }}
+              </option>
+            </select>
+            <button class="btn-connect" (click)="trySelectedPort()" [disabled]="isLoading() || !serialPorts().length">
+              {{ isLoading() ? 'Connecting...' : 'Connect' }}
+            </button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Management Unit</th>
+                  <th>Manufacturer</th>
+                  <th>Path</th>
+                  <th>Vendor / Product</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let port of serialPorts()">
+                  <td>
+                    <span *ngIf="!isManufacturerUnknown(port)">{{ getPortManagerName(port) }}</span>
+                    <input
+                      *ngIf="isManufacturerUnknown(port)"
+                      class="manager-name-input"
+                      [value]="serialManagerNames()[port.path] || ''"
+                      (input)="updateSerialManagerName(port.path, $any($event.target).value)"
+                      placeholder="Set management name"
+                    />
+                  </td>
+                  <td>{{ port.manufacturer || 'Unknown' }}</td>
+                  <td>{{ port.path }}</td>
+                  <td>{{ port.vendorId || '-' }} / {{ port.productId || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </ng-container>
+
+      <ng-container *ngIf="currentView() === 'known-vehicles'">
+        <section class="panel-block">
+          <h2>Known Vehicle Master</h2>
+          <div class="form-grid">
+            <input placeholder="VIN Pattern (e.g. JF1ZD8%)" [value]="newKnownVehicle().vinPattern" (input)="updateKnownVehicleField('vinPattern', $any($event.target).value)" />
+            <input placeholder="Manufacturer" [value]="newKnownVehicle().manufacturer" (input)="updateKnownVehicleField('manufacturer', $any($event.target).value)" />
+            <input placeholder="Model" [value]="newKnownVehicle().model" (input)="updateKnownVehicleField('model', $any($event.target).value)" />
+            <input placeholder="Model Year" [value]="newKnownVehicle().modelYear" (input)="updateKnownVehicleField('modelYear', $any($event.target).value)" />
+            <input placeholder="Engine Code" [value]="newKnownVehicle().engineCode" (input)="updateKnownVehicleField('engineCode', $any($event.target).value)" />
+            <button class="btn-connect" (click)="saveKnownVehicle()">Save / Update</button>
+          </div>
+        </section>
+
+        <section class="panel-block table-panel">
+          <h3>Registered Known Vehicles</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>VIN Pattern</th>
+                  <th>Manufacturer</th>
+                  <th>Model</th>
+                  <th>Year</th>
+                  <th>Engine</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of knownVehicles()">
+                  <td>{{ row.id }}</td>
+                  <td>{{ row.vinPattern }}</td>
+                  <td>{{ row.manufacturer }}</td>
+                  <td>{{ row.model }}</td>
+                  <td>{{ row.modelYear }}</td>
+                  <td>{{ row.engineCode }}</td>
+                  <td><button class="btn-delete" (click)="removeKnownVehicle(row.id)">Delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </ng-container>
+
+      <ng-container *ngIf="currentView() === 'connection-history'">
+        <section class="panel-block table-panel">
+          <h2>Connection History</h2>
+          <button class="btn-connect" (click)="refreshConnectionHistory()">Refresh</button>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>VIN</th>
+                  <th>Manufacturer</th>
+                  <th>Model</th>
+                  <th>Mode</th>
+                  <th>Connect At</th>
+                  <th>Disconnect At</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of connectionHistory()">
+                  <td>{{ row.id }}</td>
+                  <td>{{ row.vin || 'Unknown' }}</td>
+                  <td>{{ row.manufacturer }}</td>
+                  <td>{{ row.model }}</td>
+                  <td>{{ row.mode }}</td>
+                  <td>{{ row.connectedAt }}</td>
+                  <td>{{ row.disconnectedAt || '-' }}</td>
+                  <td>{{ row.disconnectReason || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </ng-container>
+
+      <ng-container *ngIf="currentView() === 'drive-logs'">
+        <section class="panel-block drive-log-workspace">
+          <div class="drive-log-header">
+            <div>
+              <div class="drive-log-eyebrow">DUCKDB · FULL TELEMETRY</div>
+              <h2>Drive Log Timeline</h2>
+              <p>横軸は記録日時、各レーンの縦軸は実測値です。全 {{ driveLogs().length | number }} レコードを表示しています。</p>
+            </div>
+            <div class="drive-log-header-actions">
+              <span class="live-indicator"><i></i> AUTO REFRESH</span>
+              <button class="btn-connect" (click)="refreshDriveLogs()">Refresh data</button>
+            </div>
+          </div>
+
+          <div class="metric-filter-panel">
+            <div class="metric-filter-heading">
+              <div>
+                <span>VISIBLE CHARTS</span>
+                <strong>{{ visibleDriveLogGroups().length }} / {{ driveLogGroups.length }}</strong>
+              </div>
+              <div class="metric-filter-actions">
+                <button type="button" (click)="setAllDriveLogGroups(true)">Show all</button>
+                <button type="button" (click)="setAllDriveLogGroups(false)">Hide all</button>
+              </div>
+            </div>
+            <div class="metric-check-grid">
+              <label *ngFor="let group of driveLogGroups" class="metric-check group-check" [class.active]="isDriveLogGroupVisible(group.key)">
+                <input type="checkbox" [checked]="isDriveLogGroupVisible(group.key)" (change)="toggleDriveLogGroup(group.key)" />
+                <i></i>
+                <span>{{ group.label }}</span>
+                <small>{{ group.metricKeys.length }} lines</small>
+              </label>
+            </div>
+          </div>
+
+          <div class="telemetry-chart-shell" *ngIf="driveLogs().length; else noDriveLogs">
+            <div class="chart-time-axis">
+              <span>PARAMETER / RANGE</span>
+              <div>
+                <time>{{ formatDriveLogTime(driveLogs()[driveLogs().length - 1].sampleTimestampMs, true) }}</time>
+                <time>{{ formatDriveLogTime(driveLogs()[0].sampleTimestampMs, true) }}</time>
+              </div>
+              <span>LATEST</span>
+            </div>
+
+            <div class="telemetry-lane telemetry-group-lane" *ngFor="let group of visibleDriveLogGroups()">
+              <div class="telemetry-label">
+                <div><strong>{{ group.label }}</strong></div>
+                <span>{{ group.description }} · {{ formatDriveLogGroupRange(group) }}</span>
+                <div class="chart-legend">
+                  <span *ngFor="let series of group.series">
+                    <i [style.background]="series.color"></i>
+                    <b>{{ series.shortLabel }}</b>
+                    <small>{{ formatDriveLogValue(series.min, series) }}–{{ formatDriveLogValue(series.max, series) }}</small>
+                  </span>
+                </div>
+              </div>
+              <div class="telemetry-plot">
+                <div class="chart-y-scale" aria-hidden="true">
+                  <span *ngFor="let label of getDriveLogAxisLabels(group)">{{ label }}</span>
+                </div>
+                <svg viewBox="0 0 1000 150" preserveAspectRatio="none" role="img" [attr.aria-label]="group.label + ' timeline'">
+                  <defs>
+                    <ng-container *ngFor="let series of group.series">
+                      <linearGradient [attr.id]="'glow-' + group.key + '-' + series.key" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" [attr.stop-color]="series.color" stop-opacity="0.35" />
+                        <stop offset="45%" [attr.stop-color]="series.color" stop-opacity="0.95" />
+                        <stop offset="100%" [attr.stop-color]="series.color" stop-opacity="0.75" />
+                      </linearGradient>
+                    </ng-container>
+                  </defs>
+                  <line x1="0" y1="10" x2="1000" y2="10" class="chart-guide" />
+                  <line x1="0" y1="75" x2="1000" y2="75" class="chart-guide" />
+                  <line x1="0" y1="140" x2="1000" y2="140" class="chart-guide" />
+                  <g *ngFor="let series of group.series">
+                    <path *ngFor="let path of series.paths" [attr.d]="path" class="telemetry-line-glow" [attr.stroke]="series.color" />
+                    <path *ngFor="let path of series.paths" [attr.d]="path" class="telemetry-line" [attr.stroke]="'url(#glow-' + group.key + '-' + series.key + ')'" />
+                  </g>
+                </svg>
+                <span class="no-series-data" *ngIf="group.min === null">NO SAMPLES</span>
+              </div>
+              <div class="telemetry-latest group-latest">
+                <div *ngFor="let series of group.series">
+                  <span><i [style.background]="series.color"></i>{{ series.shortLabel }}</span>
+                  <strong>{{ formatDriveLogValue(series.latest, series) }}</strong>
+                </div>
+              </div>
+            </div>
+            <div class="empty-visible-state" *ngIf="visibleDriveLogGroups().length === 0">表示するグラフを選択してください。</div>
+          </div>
+
+          <ng-template #noDriveLogs>
+            <div class="drive-log-empty"><span class="material-symbols-outlined">query_stats</span><strong>No telemetry yet</strong><p>走行データがDuckDBへ保存されると、ここに時系列が表示されます。</p></div>
+          </ng-template>
+
+          <div class="drive-log-table-heading">
+            <div><span>RAW DATA</span><strong>DuckDB records</strong></div>
+            <small>非表示にしたグラフの系列は表からもまとめて非表示になります</small>
+          </div>
+          <div class="table-wrap drive-log-table" *ngIf="driveLogs().length">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>VIN</th>
+                  <th>Vehicle</th>
+                  <th>Mode</th>
+                  <th>Port</th>
+                  <th *ngFor="let metric of driveLogMetrics" [hidden]="!isDriveLogMetricVisible(metric.key)">{{ metric.shortLabel }} <small>{{ metric.unit }}</small></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of driveLogs()">
+                  <td>{{ row.sampleAt }}</td>
+                  <td>{{ row.vin }}</td>
+                  <td>{{ row.manufacturer }} {{ row.model }}</td>
+                  <td>{{ row.mode }}</td>
+                  <td>{{ row.portPath || '—' }}</td>
+                  <td *ngFor="let metric of driveLogMetrics" [hidden]="!isDriveLogMetricVisible(metric.key)">{{ formatDriveLogValue(row[metric.key], metric) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </ng-container>
+    </section>
+  </main>
+</div>

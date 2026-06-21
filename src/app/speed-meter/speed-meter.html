@@ -1,0 +1,83 @@
+<div class="speed-card">
+  <h2>Modern Tachometer</h2>
+
+  <div class="meter-container">
+    <!-- タコメーター（回転計） -->
+    <div class="tachometer-wrapper">
+      <svg class="tachometer" viewBox="0 0 200 200">
+        <!-- 背景円 -->
+        <circle cx="100" cy="100" r="95" class="tachometer-bg" />
+        
+        <!-- スケール線 -->
+        <g class="tachometer-scale">
+          <ng-container *ngFor="let line of scaleLines">
+            <line
+              [attr.x1]="line.x1"
+              [attr.y1]="line.y1"
+              [attr.x2]="line.x2"
+              [attr.y2]="line.y2"
+              class="scale-line"
+            />
+          </ng-container>
+        </g>
+
+        <!-- 危険ゾーン（赤） -->
+        <path
+          d="M 100,100 L 100,15 A 85,85 0 0,1 122.5,18.75 Z"
+          class="danger-zone"
+        />
+
+        <!-- ニードル -->
+        <g [style.transform]="'rotate(' + tachometerAngle + 'deg)'" [style.transform-origin]="'100px 100px'" class="needle-group">
+          <line x1="100" y1="100" x2="100" y2="30" class="needle" />
+          <circle cx="100" cy="100" r="8" class="needle-center" />
+        </g>
+
+        <!-- 中央の円 -->
+        <circle cx="100" cy="100" r="5" class="needle-dot" />
+      </svg>
+    </div>
+
+    <!-- RPM と Speed 数値表示 -->
+    <div class="display-values">
+      <div class="value-item">
+        <div class="value-number">{{ rpm }}</div>
+        <div class="value-label">RPM</div>
+      </div>
+      <div class="value-item">
+        <div class="value-number">{{ speed }}</div>
+        <div class="value-label">km/h</div>
+      </div>
+    </div>
+
+    <!-- エンジン温度と燃料レベル -->
+    <div class="info-section">
+      <div class="info-item">
+        <span class="info-label">Engine Temp:</span>
+        <span class="info-value">{{ engineTemp }}°C</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Fuel Level:</span>
+        <span class="info-value">{{ fuelLevel }}%</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Status:</span>
+        <span class="info-value" [ngClass]="{ connected: isConnected }">
+          {{ connectionStatus }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- コントロールボタン -->
+  <div class="button-area">
+    <button class="btn btn-decrease" (click)="decrease()">
+      <span class="icon">−</span>
+      <span class="label">Decrease</span>
+    </button>
+    <button class="btn btn-increase" (click)="increase()">
+      <span class="icon">+</span>
+      <span class="label">Increase</span>
+    </button>
+  </div>
+</div>

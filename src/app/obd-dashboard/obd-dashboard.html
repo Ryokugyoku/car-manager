@@ -1,0 +1,111 @@
+<section class="dashboard-shell">
+  <section class="top-row">
+    <article class="focus-card rpm-card">
+      <div class="focus-head">
+        <div>
+          <p class="focus-label"><span class="material-symbols-outlined metric-icon" aria-hidden="true">speed</span>Engine RPM</p>
+          <p class="focus-unit">priority</p>
+        </div>
+        <div class="metric-badge" [class.missing]="getMetricState(getPrimaryMetric('rpm')) === 'missing'" [class.alert]="getMetricState(getPrimaryMetric('rpm')) === 'alert'">
+          {{ getMetricState(getPrimaryMetric('rpm')) === 'missing' ? 'NO DATA' : getMetricState(getPrimaryMetric('rpm')) === 'alert' ? 'SPIKE' : 'LIVE' }}
+        </div>
+      </div>
+      <div class="focus-value" [class.missing]="getMetricState(getPrimaryMetric('rpm')) === 'missing'" [class.alert]="getMetricState(getPrimaryMetric('rpm')) === 'alert'">
+        {{ formatValue(getPrimaryMetric('rpm').current, 0, 'rpm') }}
+      </div>
+      <div class="focus-footer">
+        <span>MIN {{ formatValue(getPrimaryMetric('rpm').min, 0, 'rpm') }}</span>
+        <span>MAX {{ formatValue(getPrimaryMetric('rpm').max, 0, 'rpm') }}</span>
+        <span>Δ {{ getDeltaText(getPrimaryMetric('rpm')) }}</span>
+      </div>
+    </article>
+
+    <article class="focus-card speed-card">
+      <div class="focus-head">
+        <div>
+          <p class="focus-label"><span class="material-symbols-outlined metric-icon" aria-hidden="true">route</span>Vehicle Speed</p>
+          <p class="focus-unit">priority</p>
+        </div>
+        <div class="metric-badge" [class.missing]="getMetricState(getPrimaryMetric('speed')) === 'missing'" [class.alert]="getMetricState(getPrimaryMetric('speed')) === 'alert'">
+          {{ getMetricState(getPrimaryMetric('speed')) === 'missing' ? 'NO DATA' : getMetricState(getPrimaryMetric('speed')) === 'alert' ? 'SPIKE' : 'LIVE' }}
+        </div>
+      </div>
+      <div class="focus-value" [class.missing]="getMetricState(getPrimaryMetric('speed')) === 'missing'" [class.alert]="getMetricState(getPrimaryMetric('speed')) === 'alert'">
+        {{ formatValue(getPrimaryMetric('speed').current, 0, 'km/h') }}
+      </div>
+      <div class="focus-footer">
+        <span>MIN {{ formatValue(getPrimaryMetric('speed').min, 0, 'km/h') }}</span>
+        <span>MAX {{ formatValue(getPrimaryMetric('speed').max, 0, 'km/h') }}</span>
+        <span>Δ {{ getDeltaText(getPrimaryMetric('speed')) }}</span>
+      </div>
+    </article>
+
+    <article class="summary-card">
+      <div class="summary-head">
+        <span>Summary</span>
+        <strong>{{ getKnockTendency() }}</strong>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-pill" [class.missing]="getMetricState(getPrimaryMetric('engineTemp')) === 'missing'" [class.alert]="getMetricState(getPrimaryMetric('engineTemp')) === 'alert'">
+          <span class="material-symbols-outlined summary-icon" aria-hidden="true">thermostat</span>
+          <div><span>Coolant</span><strong>{{ formatValue(getPrimaryMetric('engineTemp').current, 0, '°C') }}</strong></div>
+        </div>
+        <div class="summary-pill" [class.missing]="getMetricState(getPrimaryMetric('engineOilTemp')) === 'missing'" [class.alert]="getMetricState(getPrimaryMetric('engineOilTemp')) === 'alert'">
+          <span class="material-symbols-outlined summary-icon" aria-hidden="true">oil_barrel</span>
+          <div><span>Oil</span><strong>{{ formatValue(getPrimaryMetric('engineOilTemp').current, 0, '°C') }}</strong></div>
+        </div>
+        <div class="summary-pill" [class.missing]="getMetricState(getPrimaryMetric('atfTemp')) === 'missing'" [class.alert]="getMetricState(getPrimaryMetric('atfTemp')) === 'alert'">
+          <span class="material-symbols-outlined summary-icon" aria-hidden="true">water_drop</span>
+          <div><span>ATF</span><strong>{{ formatValue(getPrimaryMetric('atfTemp').current, 0, '°C') }}</strong></div>
+        </div>
+        <div class="summary-pill" [class.missing]="getMetricState(getPrimaryMetric('timingAdvance')) === 'missing'" [class.alert]="getMetricState(getPrimaryMetric('timingAdvance')) === 'alert'">
+          <span class="material-symbols-outlined summary-icon" aria-hidden="true">bolt</span>
+          <div><span>Timing</span><strong>{{ formatValue(getPrimaryMetric('timingAdvance').current, 1, '°BTDC') }}</strong></div>
+        </div>
+        <div class="summary-pill" [class.missing]="getMetricState(getPrimaryMetric('fuelLevel')) === 'missing'" [class.alert]="getMetricState(getPrimaryMetric('fuelLevel')) === 'alert'">
+          <span class="material-symbols-outlined summary-icon" aria-hidden="true">local_gas_station</span>
+          <div><span>Fuel</span><strong>{{ formatValue(getPrimaryMetric('fuelLevel').current, 0, '%') }}</strong></div>
+        </div>
+        <div class="summary-pill" [class.missing]="getMetricState(getPrimaryMetric('engineLoad')) === 'missing'" [class.alert]="getMetricState(getPrimaryMetric('engineLoad')) === 'alert'">
+          <span class="material-symbols-outlined summary-icon" aria-hidden="true">donut_small</span>
+          <div><span>Load</span><strong>{{ formatValue(getPrimaryMetric('engineLoad').current, 0, '%') }}</strong></div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="metric-strip">
+    <article *ngFor="let metric of metricStates" class="metric-card" [style.--accent]="metric.accent" [class.missing]="getMetricState(metric) === 'missing'" [class.alert]="getMetricState(metric) === 'alert'">
+      <div class="metric-head">
+        <div>
+          <div class="metric-title">
+            <span class="material-symbols-outlined metric-icon" aria-hidden="true">{{ metric.icon }}</span>
+            <p class="metric-label">{{ metric.label }}</p>
+          </div>
+          <p class="metric-unit">{{ metric.unit }}</p>
+        </div>
+        <div class="metric-badge" [class.missing]="getMetricState(metric) === 'missing'" [class.alert]="getMetricState(metric) === 'alert'">
+          {{ getMetricState(metric) === 'missing' ? 'NO DATA' : getMetricState(metric) === 'alert' ? 'SPIKE' : 'LIVE' }}
+        </div>
+      </div>
+
+      <div class="metric-current">{{ formatValue(metric.current, metric.decimals, metric.unit) }}</div>
+
+      <div class="metric-ranges">
+        <div>
+          <span>MIN</span>
+          <strong>{{ formatValue(metric.min, metric.decimals, metric.unit) }}</strong>
+        </div>
+        <div>
+          <span>MAX</span>
+          <strong>{{ formatValue(metric.max, metric.decimals, metric.unit) }}</strong>
+        </div>
+      </div>
+
+      <div class="metric-bar">
+        <div class="metric-fill" [style.width.%]="getRangePercent(metric)"></div>
+      </div>
+      <div class="metric-delta">Δ {{ getDeltaText(metric) }}</div>
+    </article>
+  </section>
+</section>
