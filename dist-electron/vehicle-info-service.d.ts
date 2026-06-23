@@ -169,6 +169,12 @@ export declare class VehicleInfoService {
     };
     startConnectionHistory(payload: ConnectionStartPayload): number | null;
     finishConnectionHistory(connectionId: number, reason: string, disconnectedAt?: string): void;
+    /**
+     * 前回起動時の未完了レコードは、正常な切断処理を通らずにプロセスが
+     * 終了した接続として扱う。現在の接続が作られる前の起動時にのみ呼ぶ。
+     * 実際の終了時刻は確定できないため disconnected_at は補完しない。
+     */
+    private markIncompleteConnectionsAsForceQuit;
     listConnectionHistory(limit?: number): ConnectionHistoryRecord[];
     resolveVehicleIdentity(vin: string | null): VehicleIdentity;
     private initializeStoragePaths;

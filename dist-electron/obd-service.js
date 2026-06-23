@@ -39,16 +39,16 @@ class OBDService {
             sampledFields: {},
             timestamp: Date.now(),
         };
-        // 通信負荷を平準化するため、PID要求と配信を別タイマーで制御する。
+        // PID要求は応答を受信するまで次へ進めず、1巡が完了した時点で配信する。
         this.requestTimer = null;
-        this.publishTimer = null;
         this.requestInFlight = false;
         this.pidCursor = 0;
-        // 1秒単位で画面更新（要件）。
-        this.publishIntervalMs = 1000;
-        // PID送信間隔。ECUが低速な車種でも取りこぼしにくいよう、やや保守的な周期にする。
-        this.requestIntervalMs = 160;
-        this.writeTimeoutMs = 800;
+        this.pendingRequest = null;
+        this.requestLoopGeneration = 0;
+        // 「>」受信後にだけ次へ進むため、固定待ちは入れずアダプタの処理速度に追従する。
+        this.interRequestDelayMs = 0;
+        // シリアルへの書き込みではなくECU応答を待つため、低速な車両にも余裕を持たせる。
+        this.responseTimeoutMs = 3000;
         // NO DATA が続く猶予時間。瞬間的な通信揺れで切断扱いにしない。
         this.noDataGraceMs = 15000;
         // 監視プロファイル。将来的に ASC カプラー専用モードを増やしやすい構造。
@@ -138,6 +138,14 @@ class OBDService {
             this.parser.on('data', (line) => {
                 this.handleDataLine(line);
             });
+            // ELM/OBDLink は「>」を返した時点で1コマンドの処理が完了する。
+            // PIDデータ行だけで次要求へ進むと、複数行応答の途中やプロンプト直前に
+            // 次コマンドを送って取りこぼすことがあるため、生データ側で終端を検知する。
+            this.port.on('data', (chunk) => {
+                if (chunk.includes(0x3e)) {
+                    this.completePendingRequest();
+                }
+            });
             this.port.on('error', (error) => {
                 console.error(`シリアルポートエラー: ${error}`);
                 this.notifyConnectionLost('serial-error');
@@ -187,7 +195,6 @@ class OBDService {
         this.cachedVin = await this.readVINWithRetry();
         if (wasMonitoring && this.monitoringCallback) {
             this.startRequestLoop();
-            this.startPublishLoop();
         }
         return this.cachedVin;
     }
@@ -218,7 +225,6 @@ class OBDService {
         this.noDataStreak = 0;
         this.lastSuccessfulRxAt = Date.now();
         this.startRequestLoop();
-        this.startPublishLoop();
     }
     /**
      * 車両データの定期取得を停止する。
@@ -350,22 +356,26 @@ class OBDService {
     }
     /**
      * PID要求ループ（ラウンドロビン）。
-     * 毎 tick で1 PIDだけ送ることで、項目数が増えても通信がバーストしないようにする。
+     * ELM/OBDLink のコマンド完了後にだけ次の PID を要求する。
      */
     startRequestLoop() {
         this.stopRequestTimer();
-        this.requestTimer = setInterval(() => {
-            void this.requestNextPid();
-        }, this.requestIntervalMs);
-    }
-    /**
-     * 画面配信ループ。1秒ごとに最新スナップショットを配信する。
-     */
-    startPublishLoop() {
-        this.stopPublishTimer();
-        this.publishTimer = setInterval(() => {
-            this.publishSnapshot();
-        }, this.publishIntervalMs);
+        const generation = this.requestLoopGeneration;
+        const runNext = async () => {
+            if (!this.isMonitoring || generation !== this.requestLoopGeneration) {
+                return;
+            }
+            await this.requestNextPid();
+            if (!this.isMonitoring || generation !== this.requestLoopGeneration) {
+                return;
+            }
+            this.requestTimer = setTimeout(() => {
+                void runNext();
+            }, this.interRequestDelayMs);
+        };
+        this.requestTimer = setTimeout(() => {
+            void runNext();
+        }, 0);
     }
     async requestNextPid() {
         if (!this.isMonitoring || !this.port || this.requestInFlight) {
@@ -386,6 +396,10 @@ class OBDService {
         }
         finally {
             this.requestInFlight = false;
+        }
+        // 最後のPIDの応答（NO DATA/タイムアウトを含む）まで待ってから、1巡分を1件として配信する。
+        if (this.isMonitoring && this.pidCursor === 0) {
+            this.publishSnapshot();
         }
     }
     publishSnapshot() {
@@ -420,18 +434,13 @@ class OBDService {
     }
     stopTimers() {
         this.stopRequestTimer();
-        this.stopPublishTimer();
+        this.pendingRequest?.finish();
     }
     stopRequestTimer() {
+        this.requestLoopGeneration += 1;
         if (this.requestTimer) {
-            clearInterval(this.requestTimer);
+            clearTimeout(this.requestTimer);
             this.requestTimer = null;
-        }
-    }
-    stopPublishTimer() {
-        if (this.publishTimer) {
-            clearInterval(this.publishTimer);
-            this.publishTimer = null;
         }
     }
     /**
@@ -449,19 +458,27 @@ class OBDService {
             const finish = () => {
                 if (!settled) {
                     settled = true;
+                    clearTimeout(timeoutId);
+                    if (this.pendingRequest?.finish === finish) {
+                        this.pendingRequest = null;
+                    }
                     resolve();
                 }
             };
             const timeoutId = setTimeout(() => {
-                console.warn(`[OBD TX TIMEOUT] pid=${pid}`);
+                console.warn(`[OBD RX TIMEOUT] pid=${pid}`);
+                // イグニッションOFF後は ELM327 が "NO DATA" を返さず、単に無応答になる車両がある。
+                // タイムアウトも ECU 応答失敗として数えないと、そのケースでは接続断を検知できない。
+                this.recordEcuResponseFailure();
                 finish();
-            }, this.writeTimeoutMs);
+            }, this.responseTimeoutMs);
+            // write完了ではなく、ELM/OBDLink の「>」受信を要求完了とする。
+            this.pendingRequest = { finish };
             this.port.write(`${pid}\r`, (error) => {
-                clearTimeout(timeoutId);
                 if (error) {
                     console.error(`[OBD TX ERROR] pid=${pid}`, error);
+                    finish();
                 }
-                finish();
             });
         });
     }
@@ -470,8 +487,9 @@ class OBDService {
      * ヘッダー有無やスペース有無が混在しても、HEXバイト列として抽出して判定する。
      */
     handleDataLine(line) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('>') || trimmed === 'OK') {
+        // 前コマンドのプロンプトが次の行頭へ残る機器があるため、先頭の > だけ除去する。
+        const trimmed = line.trim().replace(/^>+\s*/, '');
+        if (!trimmed || trimmed === 'OK') {
             // プロンプトや単純な OK 応答はデータではないので捨てる。
             return;
         }
@@ -479,11 +497,7 @@ class OBDService {
         // 実機でのプロトコル違い調査時に、どんな生レスポンスが来ているかを追えるようにする。
         console.log('[OBD RX]', trimmed);
         if (trimmed === 'NO DATA' || trimmed === 'STOPPED' || trimmed === 'UNABLE TO CONNECT') {
-            this.noDataStreak += 1;
-            const elapsedSinceLastRx = Date.now() - this.lastSuccessfulRxAt;
-            if (this.isMonitoring && this.noDataStreak >= 5 && elapsedSinceLastRx >= this.noDataGraceMs) {
-                this.notifyConnectionLost('ignition-off');
-            }
+            this.recordEcuResponseFailure();
             return;
         }
         // 文字列から 2桁HEX の並びだけを抜き出す。
@@ -557,6 +571,23 @@ class OBDService {
             this.lastSuccessfulRxAt = Date.now();
             this.dataCache.atfTemp = atfValue;
         }
+    }
+    recordEcuResponseFailure() {
+        if (!this.isMonitoring) {
+            return;
+        }
+        this.noDataStreak += 1;
+        const elapsedSinceLastRx = Date.now() - this.lastSuccessfulRxAt;
+        if (this.noDataStreak >= 5 && elapsedSinceLastRx >= this.noDataGraceMs) {
+            this.notifyConnectionLost('ignition-off');
+        }
+    }
+    completePendingRequest() {
+        const pending = this.pendingRequest;
+        if (!pending) {
+            return;
+        }
+        pending.finish();
     }
     parseAtfTemperature(bytes) {
         const candidates = [

@@ -14,6 +14,7 @@ const VOLUME_WARNING_PERCENT = 80;
 const VOLUME_CRITICAL_PERCENT = 92;
 const WRITE_GUARD_BYTES = 4 * BYTES_PER_MB;
 const AUTO_EXPAND_MIN_STEP_MB = 256;
+const APP_FORCE_QUIT_REASON = 'app-force-quit';
 class VehicleInfoService {
     constructor() {
         this.duckDb = null;
@@ -32,6 +33,7 @@ class VehicleInfoService {
         this.ioDbKind = 'io';
         this.paths = this.initializeStoragePaths();
         this.ensureMasterStore();
+        this.markIncompleteConnectionsAsForceQuit();
         this.configuredReservationMb = this.loadConfiguredReservationMb();
         this.ensureSummaryStore();
         this.startIoSampling();
@@ -349,6 +351,20 @@ UPDATE connection_history
 SET disconnected_at='${this.escapeSql(disconnectedAt)}',
     disconnect_reason='${this.escapeSql(reason)}'
 WHERE id=${Number(connectionId)} AND disconnected_at IS NULL;
+`;
+        this.execute(sql);
+    }
+    /**
+     * 前回起動時の未完了レコードは、正常な切断処理を通らずにプロセスが
+     * 終了した接続として扱う。現在の接続が作られる前の起動時にのみ呼ぶ。
+     * 実際の終了時刻は確定できないため disconnected_at は補完しない。
+     */
+    markIncompleteConnectionsAsForceQuit() {
+        const sql = `
+UPDATE connection_history
+SET disconnect_reason='${APP_FORCE_QUIT_REASON}'
+WHERE disconnected_at IS NULL
+  AND (disconnect_reason IS NULL OR disconnect_reason = '');
 `;
         this.execute(sql);
     }

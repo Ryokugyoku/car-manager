@@ -212,7 +212,7 @@ app.on('ready', () => {
             model: driveVehicle.model,
             mode: driveVehicle.mode,
             portPath: driveVehicle.portPath,
-            // 同値はそのまま保存し、当該秒で未取得の項目は NULL で保持する。
+            // 同値はそのまま保存し、当該PID巡回で未取得の項目は NULL で保持する。
             speed: sampledOrNull('speed', snapshot.speed),
             rpm: sampledOrNull('rpm', snapshot.rpm),
             engineTemp: sampledOrNull('engineTemp', snapshot.engineTemp),

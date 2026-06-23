@@ -27,12 +27,12 @@ export declare class OBDService {
     private dataCache;
     private lastEmittedData;
     private requestTimer;
-    private publishTimer;
     private requestInFlight;
     private pidCursor;
-    private readonly publishIntervalMs;
-    private readonly requestIntervalMs;
-    private readonly writeTimeoutMs;
+    private pendingRequest;
+    private requestLoopGeneration;
+    private readonly interRequestDelayMs;
+    private readonly responseTimeoutMs;
     private readonly noDataGraceMs;
     private readonly profiles;
     private currentMode;
@@ -103,18 +103,13 @@ export declare class OBDService {
     private sendCommand;
     /**
      * PID要求ループ（ラウンドロビン）。
-     * 毎 tick で1 PIDだけ送ることで、項目数が増えても通信がバーストしないようにする。
+     * ELM/OBDLink のコマンド完了後にだけ次の PID を要求する。
      */
     private startRequestLoop;
-    /**
-     * 画面配信ループ。1秒ごとに最新スナップショットを配信する。
-     */
-    private startPublishLoop;
     private requestNextPid;
     private publishSnapshot;
     private stopTimers;
     private stopRequestTimer;
-    private stopPublishTimer;
     /**
       * PID を 1つ要求する。
       * 例: 010C = RPM, 010D = 速度。
@@ -125,6 +120,8 @@ export declare class OBDService {
      * ヘッダー有無やスペース有無が混在しても、HEXバイト列として抽出して判定する。
      */
     private handleDataLine;
+    private recordEcuResponseFailure;
+    private completePendingRequest;
     private parseAtfTemperature;
     private decodeTemperaturePayload;
     private findPatternIndex;

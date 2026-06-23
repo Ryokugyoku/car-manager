@@ -117,8 +117,24 @@
     },
     {
       "label": "electron:dev-watch",
-      "dependsOn": ["npm: start:electron", "npm: electron:compile:watch"],
-      "problemMatcher": [],
+      "type": "shell",
+      "command": "export PATH=\"/opt/homebrew/opt/node@24/bin:$PATH\" && npm run check:node && npm run electron:compile && (npm run start:electron & npm run electron:compile:watch & npx wait-on tcp:127.0.0.1:4200 && echo \"Electron dev services ready\" && wait)",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "electron-dev",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": {
+            "regexp": "."
+          },
+          "endsPattern": {
+            "regexp": "Electron dev services ready"
+          }
+        }
+      },
       "group": {
         "kind": "none"
       }

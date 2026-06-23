@@ -2,11 +2,15 @@
   "name": "car-manager",
   "version": "0.0.0",
   "license": "PolyForm-Noncommercial-1.0.0",
+  "engines": {
+    "node": "^24.15.0"
+  },
   "main": "dist-electron/main.js",
   "scripts": {
+    "check:node": "node -e \"const [major, minor] = process.versions.node.split('.').map(Number); if (major !== 24 || minor < 15) { console.error('Use Node.js 24.15.x for this project. Current: ' + process.version); process.exit(1); }\"",
     "ng": "ng",
     "start": "ng serve",
-    "start:electron": "ng serve --configuration electron",
+    "start:electron": "ng serve --configuration electron --host 127.0.0.1",
     "build": "ng build --configuration development",
     "build:prod": "ng build --configuration production",
     "build:electron": "ng build --configuration electron",

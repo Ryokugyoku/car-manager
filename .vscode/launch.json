@@ -13,6 +13,12 @@
         "NODE_ENV": "development"
       },
       "preLaunchTask": "electron:compile",
+      "outFiles": ["${workspaceFolder}/dist-electron/**/*.js"],
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/dist-electron/**/*.js",
+        "!${workspaceFolder}/.angular/**",
+        "!**/node_modules/**"
+      ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
     },
@@ -35,6 +41,12 @@
         "NODE_ENV": "development"
       },
       "preLaunchTask": "electron:dev-watch",
+      "outFiles": ["${workspaceFolder}/dist-electron/**/*.js"],
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/dist-electron/**/*.js",
+        "!${workspaceFolder}/.angular/**",
+        "!**/node_modules/**"
+      ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen"
     },
